@@ -39,8 +39,7 @@ jobs:
             cd backend
             python3 -m venv venv
             . venv/bin/activate
-            pip install --upgrade pip &&\
-		pip install -r requirements.txt        
+            pip install --upgrade pip && pip install -r requirements.txt        
       - save_cache:
           paths: [backend]
           key: v1-dependencies-{{ checksum "requirements.txt" }}
