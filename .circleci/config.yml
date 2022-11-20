@@ -73,7 +73,7 @@ jobs:
           name: Test client Frontend
           command: |
             cd frontend/client/
-            rm package-lock.json
+            # rm package-lock.json
             npm install
             npm run test
   test-frontend-admin:
