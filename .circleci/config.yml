@@ -154,9 +154,9 @@ jobs:
       - run:
           name: Push Image to docker hub
           command: |
-            docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
-            docker tag app judithezenwosu/xchange-fe-client
-            docker push judithezenwosu/xchange-fe-client
+            sudo docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+            sudo docker tag app judithezenwosu/frontend-client
+            sudo docker push judithezenwosu/frontend-client:latest
   build-backend-docker-image:
     docker:
       # Docker image that supports docker
@@ -196,9 +196,9 @@ jobs:
       - run:
           name: Push Image to docker hub
           command: |
-            docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
-            docker tag app-be judithezenwosu/test-be
-            docker push judithezenwosu/test-be
+            sudo docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+            sudo docker tag app-be judithezenwosu/backend
+            sudo docker push judithezenwosu/backend:latest
   deploy-images:
     docker:
       # Docker image that supports docker
@@ -206,7 +206,7 @@ jobs:
     steps:
       - checkout
       - add_ssh_keys:
-          fingerprints: ["09:86:cf:93:4e:a9:6f:70:4a:20:c2:63:f5:e2:48:6c"]
+          fingerprints: ["0a:b6:f3:06:2a:5c:8a:f6:25:57:09:d0:4c:0d:52:19"]
       - run:
           name: Deploy
           command: |
@@ -228,20 +228,20 @@ workflows:
       # - test-frontend-admin
       - test-backend
       - build-frontend-client-docker-image:
-          requires: [build-frontend-client] #remember to channge to test
+          requires: [test-frontend-client] #remember to channge to test
           filters:
             branches:
-              only: [merge-dev]
+              only: [main]
 
       - build-backend-docker-image:
-          requires: [build-backend] #remember to channge to test
+          requires: [test-backend] #remember to channge to test
           filters:
             branches:
-              only: [merge-dev]
+              only: [main]
 
       - deploy-images:
           requires:
             [
               build-frontend-client-docker-image,
-              build-frontend-client-docker-image,
+              build-backend-client-docker-image,
             ]
