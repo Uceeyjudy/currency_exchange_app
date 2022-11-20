@@ -6,22 +6,41 @@ parameters:
     default: '${WORKFLOW_ID}'
             
 jobs:
-  build-frontend:
+  build-frontend-client:
     docker:
       - image: circleci/node:13.8.0
     steps:
       - checkout
       - restore_cache:
-          keys: [frontend-build]
+          keys: [frontend-client-build]
       - run:
-          name: Build front-end
+          name: Build front-end Client
           command: |
-            cd frontend
+            cd frontend/client
+            # rm package-lock.json
             npm install
             npm run build
       - save_cache:
-          paths: [frontend/client]
-          key: frontend-build
+          paths: [frontend/client/node_modules]
+          key: frontend-client-build
+
+  build-frontend-admin:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - restore_cache:
+          keys: [frontend-admin-build]
+      - run:
+          name: Build front-end admin
+          command: |
+            cd frontend/admin
+            rm package-lock.json
+            npm install
+            npm run build
+      - save_cache:
+          paths: [frontend/admin/node_modules]
+          key: frontend-admin-build
 
   build-backend:
     docker:
@@ -44,22 +63,40 @@ jobs:
           paths: [backend]
           key: v1-dependencies-{{ checksum "requirements.txt" }}
 
-  test-frontend:
+  test-frontend-client:
     docker:
+      # Docker image here
       - image: circleci/node:13.8.0
     steps:
+      # Checkout code from git
       - checkout
+      # Restore from cache
       - restore_cache:
-          keys: [frontend-build]
+          keys: [frontend-client-build]
+      # Your job code here
       - run:
-          name: Run front-end test
+          name: Test client Frontend
           command: |
-            cd frontend
+            cd frontend/client/
             npm install
             npm run test
-      - save_cache:
-          paths: [frontend/client]
-          key: frontend-build
+  test-frontend-admin:
+    docker:
+      # Docker image here
+      - image: circleci/node:13.8.0
+    steps:
+      # Checkout code from git
+      - checkout
+      # Restore from cache
+      - restore_cache:
+          keys: [frontend-admin-build]
+      # Your job code here
+      - run:
+          name: Test admin Frontend
+          command: |
+            cd frontend/admin/
+            npm install
+            npm run test
 
   test-backend:
     docker:
@@ -73,45 +110,12 @@ jobs:
           command: |
             cd backend
             python3 -m venv venv
-            . venv/bin/activate        
+            . venv/bin/activate
+            pip install --upgrade pip && pip install -r requirements.txt      
       - save_cache:
           paths: [backend]
           key: v1-dependencies-{{ checksum "requirements.txt" }}
 
-  scan-frontend:
-    docker:
-      - image: circleci/node:13.8.0
-    steps:
-      - checkout
-      - restore_cache:
-          keys: [frontend-build]
-      - run:
-          name: Analyse front-end
-          command: |
-            cd frontend
-            npm install
-            npm audit fix --audit-level=critical --force
-      - save_cache:
-          paths: [frontend/client]
-          key: frontend-build
-
-  scan-backend:
-    docker:
-      - image: python:3.7.3-stretch
-    steps:
-      - checkout
-      - restore_cache:
-          keys: [backend-build]
-      - run:
-          name: Scan backend
-          command: |
-            cd backend
-            python3 -m venv venv
-            . venv/bin/activate        
-      - save_cache:
-          paths: [backend]
-          key: v1-dependencies-{{ checksum "requirements.txt" }}
-          
 
   configure-infrastructure:
     docker:
@@ -242,18 +246,14 @@ jobs:
 workflows:
   default:
     jobs:
-      - build-frontend
+      - build-frontend-client
       - build-backend
-      - test-frontend:
-          requires: [build-frontend]
+      - test-frontend-client:
+          requires: [build-frontend-client]
       - test-backend:
           requires: [build-backend]
-      - scan-backend:
-          requires: [build-backend]
-      - scan-frontend:
-          requires: [build-frontend]
       - configure-infrastructure:
-          requires: [test-frontend, test-backend, scan-frontend, scan-backend]
+          requires: [test-frontend-client, test-backend]
           filters:
             branches:
               only: [master]
