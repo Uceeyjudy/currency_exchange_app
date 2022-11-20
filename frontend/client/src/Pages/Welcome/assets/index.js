@@ -1,0 +1,5 @@
+export {default as US} from "./svg/US.svg"
+export {default as Japan} from "./svg/Japan.svg"
+export {default as Ghana} from "./svg/Ghana.svg"
+export {default as Canada} from "./svg/Canada.svg"
+export {default as Australia} from "./svg/Australia.svg"
