@@ -63,19 +63,21 @@ jobs:
       # Docker image here
       - image: circleci/node:13.8.0
     steps:
-      # Checkout code from git
       - checkout
-      # Restore from cache
       - restore_cache:
           keys: [frontend-client-build]
-      # Your job code here
       - run:
-          name: Test client Frontend
+          name: Test front-end Client
           command: |
-            cd frontend/client/
-            # rm package-lock.json
+            cd frontend/client
+            rm package-lock.json
+            npx npm-merge-driver install -g
             npm install
-            npm run test
+            npm run build
+      - save_cache:
+          paths: [frontend/client/node_modules]
+          key: frontend-client-test
+          
   test-frontend-admin:
     docker:
       # Docker image here
