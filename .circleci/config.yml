@@ -1,10 +1,5 @@
 version: 2.1
 
-parameters:
-  workflow_id:
-    type: string
-    default: '${WORKFLOW_ID}'
-            
 jobs:
   build-frontend-client:
     docker:
@@ -44,24 +39,23 @@ jobs:
 
   build-backend:
     docker:
-    - image: python:3.7.3-stretch
+      - image: circleci/python:3.7
     steps:
       - checkout
       - restore_cache:
-          keys:
-            - v1-dependencies-{{ checksum "requirements.txt" }}
-            # fallback to using the latest cache if no exact match is found
-            - v1-dependencies-
+          keys: [backend-build]
       - run:
           name: Back-end build
           command: |
+            # Your code here
             cd backend
             python3 -m venv venv
             . venv/bin/activate
-            pip install --upgrade pip && pip install -r requirements.txt        
+            pip install -r requirements.txt
+          #  exit 1
       - save_cache:
-          paths: [backend]
-          key: v1-dependencies-{{ checksum "requirements.txt" }}
+          paths: [backend/venv]
+          key: backend-build
 
   test-frontend-client:
     docker:
@@ -97,172 +91,153 @@ jobs:
             cd frontend/admin/
             npm install
             npm run test
-
   test-backend:
     docker:
-      - image: python:3.7.3-stretch
+      # Docker image here
+      - image: circleci/python:3.7
     steps:
+      # Checkout code from git
       - checkout
+      # Restore from cache
       - restore_cache:
           keys: [backend-build]
+      # Your job code here
       - run:
-          name: Back-end Test
+          name: Test Backend
           command: |
             cd backend
-            python3 -m venv venv
             . venv/bin/activate
-            pip install --upgrade pip && pip install -r requirements.txt      
-      - save_cache:
-          paths: [backend]
-          key: v1-dependencies-{{ checksum "requirements.txt" }}
-
-
-  configure-infrastructure:
+            pytest
+  build-frontend-client-docker-image:
     docker:
-      - image: python:3.10-alpine3.16
-    steps:
-      - checkout
-      - add_ssh_keys:
-          fingerprints: ["7e:93:19:87:e1:29:48:86:82:2b:c9:1b:82:0b:85:a0"]
-      - run:
-          name: Install dependencies
-          command: |
-            apk add --update  ansible
-            pip install awscli
-      - run:
-          name: Configure server
-          command: |
-            cd .circleci/ansible
-            ansible-playbook -i inventory.txt configure-server.yml
-
-
-  run-migrations:
-    docker:
-      # Docker image here that supports NodeJS
-      - image: python:3.10-alpine3.16
+      # Docker image that supports docker
+      - image: docker:17.05.0-ce-git
     steps:
       # Checkout code from git
       - checkout
-      - run:
-          name: Install dependencies
-          command: |
-            apk add --update --no-cache tar gzip nodejs npm aws-cli curl
+      - setup_remote_docker
+      # - run:
+      #     name: Build docker image
+      #     command: |
+      #       cd frontend/client/
+
       - restore_cache:
-          keys: [backend-build]
+          keys:
+            - v1-{{ .Branch }}
+          # paths:
+          #   - /caches/app.tar
+
       - run:
-          name: Run migrations
+          name: Load Docker image layer cache
+          command: |
+            set +o pipefail
+            docker load -i /caches/app.tar | true
+      - run:
+          name: Build application Docker image
+          command: |
+            cd frontend/client/
+            docker build --cache-from=app -t app .
+      - run:
+          name: Save Docker image layer cache
+          command: |
+            mkdir -p /caches
+            docker save -o /caches/app.tar app
+      - save_cache:
+          key: v1-{{ .Branch }}-{{ epoch }}
+          paths:
+            - /caches/app.tar
+
+      - run:
+          name: Push Image to docker hub
+          command: |
+            docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+            docker tag app hacklight/xchange-fe-client
+            docker push hacklight/xchange-fe-client
+  build-backend-docker-image:
+    docker:
+      # Docker image that supports docker
+      - image: docker:17.05.0-ce-git
+    steps:
+      # Checkout code from git
+      - checkout
+
+      - setup_remote_docker
+
+      - restore_cache:
+          keys:
+            - v1-{{ .Branch }}
+          # paths:
+          #   - /caches/app.tar
+
+      - run:
+          name: Load Docker image layer cache
+          command: |
+            set +o pipefail
+            docker load -i /caches/app.tar | true
+      - run:
+          name: Build application Docker image
           command: |
             cd backend
-            npm install
-            npm run build
-            npm run migrations >> migrations_dump.txt
-            ls -al
-            cat migrations_dump.txt
+            docker build --cache-from=app-be -t app-be .
       - run:
-          name: Send migration results to kvdb
+          name: Save Docker image layer cache
           command: |
-            if grep -q "migrations" ~/project/backend/migrations_dump.txt
-            then
-              curl --insecure https://kvdb.io/DG5w1J7LyNDeZXEbq2YrLQ/migration_${WORKFLOW_ID:0:7} -d '1'
-            fi
+            mkdir -p /caches
+            docker save -o /caches/app.tar app-be
+      - save_cache:
+          key: v1-{{ .Branch }}-{{ epoch }}
+          paths:
+            - /caches/app.tar
 
-
-  deploy-frontend:
+      - run:
+          name: Push Image to docker hub
+          command: |
+            docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+            docker tag app-be hacklight/test-be
+            docker push hacklight/test-be
+  deploy-images:
     docker:
-      # Docker image here that supports AWS CLI
-      # - image: amazon/aws-cli
-      - image: python:3.10-alpine3.16
+      # Docker image that supports docker
+      - image: circleci/openjdk:8-jdk
     steps:
-      # Checkout code from git
       - checkout
-      - attach_workspace:
-          at: ~/
-      - run:
-          name: Install deps
-          command: |
-            apk add --update --no-cache tar gzip nodejs npm ansible curl aws-cli
-      - run:
-          name: Get backend url
-          command: |
-            export BACKEND_IP=$(aws ec2 describe-instances \
-            --query 'Reservations[*].Instances[*].PublicIpAddress' \
-            --filters Name=tag:aws:cloudformation:stack-name,Values=backend-${WORKFLOW_ID:0:7} \
-            --output text)
-            export API_URL="http://${BACKEND_IP}:3030"
-            echo "API_URL = ${API_URL}"
-            echo "API_URL=http://${BACKEND_IP}:3030" >> frontend/.env
-            cat frontend/.env
-      - run:
-          name: Deploy frontend objects
-          command: |
-            cd frontend
-            npm install
-            npm run build
-            tar -czvf artifact-"${WORKFLOW_ID:0:7}".tar.gz dist
-            //aws s3 cp dist s3://frontend-${WORKFLOW_ID:0:7} --recursive
-            # your code here
-      # Here's where you will add some code to rollback on failure
-
-
-  deploy-backend:
-    docker:
-      # Docker image here that supports Ansible
-      - image: python:3.10-alpine3.16
-    steps:
-      # Checkout code from git
-      - checkout
-      # Add ssh keys with fingerprint
       - add_ssh_keys:
-          fingerprints: ["7e:93:19:87:e1:29:48:86:82:2b:c9:1b:82:0b:85:a0"]
-      - attach_workspace:
-            at: ~/
+          fingerprints: ["09:86:cf:93:4e:a9:6f:70:4a:20:c2:63:f5:e2:48:6c"]
       - run:
-          name: Install dependencies
+          name: Deploy
           command: |
-            apk add --update ansible
-            ansible --version
-            apk add --update --no-cache tar gzip nodejs npm curl
-            pip install awscli
-            aws --version
-
-      - run:
-          name: Deploy backend
-          command: |
-            cd backend
-            npm i
-            npm run build
-            cd ..
-            # Zip the directory
-            tar -C backend -czvf artifact.tar.gz .
-            mkdir -p ~/project/.circleci/ansible/roles/deploy/files/
-            mv artifact.tar.gz .circleci/ansible/roles/deploy/files/artifact.tar.gz
-            cd .circleci/ansible
-            echo "Contents  of the inventory.txt file is ------"
-            cat inventory.txt
-            ansible-playbook -i inventory.txt deploy-backend.yml
-
+            # SSH to the server to deploy
+            # TODO Change to your username
+            EC2_USERNAME=ubuntu
+            EC2_PUBLIC_DNS=44.203.211.6
+            ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_PUBLIC_DNS "/home/ubuntu/run.sh"
 
 
 workflows:
   default:
+    # testing
     jobs:
       - build-frontend-client
+      # # - build-frontend-admin
       - build-backend
-      - test-frontend-client:
-          requires: [build-frontend-client]
-      - test-backend:
-          requires: [build-backend]
-      - configure-infrastructure:
-          requires: [test-frontend-client, test-backend]
+      # - test-frontend-client
+      # - test-frontend-admin
+      # - test-backend
+      - build-frontend-client-docker-image:
+          requires: [build-frontend-client] #remember to channge to test
           filters:
             branches:
-              only: [master]
-      - run-migrations:
-          requires: [configure-infrastructure]
-      - deploy-frontend:
-          requires: [run-migrations]
-      - deploy-backend:
-          requires: [run-migrations]
+              only: [merge-dev]
 
+      - build-backend-docker-image:
+          requires: [build-backend] #remember to channge to test
+          filters:
+            branches:
+              only: [merge-dev]
 
-
+      - deploy-images:
+          requires:
+            [
+              build-frontend-client-docker-image,
+              build-frontend-client-docker-image,
+            ]

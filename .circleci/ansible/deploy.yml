@@ -1,0 +1,41 @@
+
+
+---
+- name: "configuration play."
+  hosts: web
+  user: ubuntu
+  # become: true
+  # become_method: sudo
+  # become_user: root
+  gather_facts: false
+  # environment:
+  # Add more env vars here
+  tasks:
+    - name: "Test"
+      become: yes
+      shell: cd realxchangerate.web && ls -l && /usr/bin/docker-compose
+      register: command_output
+    - debug:
+        var: command_output.stdout_lines
+
+    # - name: "change directory"
+    #   become: yes
+    #   shell: cd /home/ubuntu/realxchangerate.web & cat docker-compose.yml
+
+    - name: "Stop docker"
+      shell: |
+        ls -l
+        sudo cd realxchangerate.web/
+        sudo /usr/bin/docker-compose down
+      register: command_output
+    - debug:
+        var: command_output.stdout_lines
+
+    - name: "Start docker"
+      become: yes
+      shell: /home/ubuntu/realxchangerate.web docker-compose up -d
+
+  vars:
+    - ansible_python_interpreter: /usr/bin/python3
+    - ansible_host_key_checking: false
+    - ansible_stdout_callback: yaml
