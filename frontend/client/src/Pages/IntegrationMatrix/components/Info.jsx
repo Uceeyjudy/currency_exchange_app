@@ -22,8 +22,8 @@ const Info = () => {
           </div>
           <p>180+ Countries Covered</p>
           <p>
-            Our Exchange rate API is built for developers. We make it easy to plug-in to yout existing software. You’ll
-            receive SDKs for Java, NodeJS, PHP and Python.
+            Our API provides data from over 180 countries, giving our users real time update on information in countries
+            they need now and whenever then integrated to their system.
           </p>
         </Card>
         <Card>
@@ -42,8 +42,8 @@ const Info = () => {
           </div>
           <p>Accurate and Precise Data to Implement</p>
           <p>
-            Our Exchange rate API is built for developers. We make it easy to plug-in to yout existing software. You’ll
-            receive SDKs for Java, NodeJS, PHP and Python.
+            Data gotten through our API are updated at least twice daily, hence giving users and developers the
+            assurance of getting up to date real time information, helping them maximize their solutions.
           </p>
         </Card>
       </CardsContainer>

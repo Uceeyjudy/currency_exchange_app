@@ -505,7 +505,7 @@ const DownloadSection = styled.div`
   /* justify-content: space-between; */
   color: #202020;
   font-family: var(--font-family);
-
+  padding-bottom: 40px;
   @media ${devices.laptop} {
     flex-direction: column;
     padding: 42px 24px;

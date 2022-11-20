@@ -8,7 +8,7 @@ export const Container = styled.div`
   background: #BBCAF3;
   padding:1.5rem;
   height: 391px;
-  
+  margin-top: -2rem;
    @media only screen and (min-width: 768px) {
     padding: 5rem
   }
@@ -62,14 +62,14 @@ export const Searchgroup = styled.div`
     position: absolute;
     z-index: 50;
     margin-left: 2rem;
-    top: 1rem;
+    top: 1.5rem;
   }
   @media only screen and (min-width: 768px) {
     & img {
       position: absolute;
       z-index: 50;
       margin-left: 2rem;
-      top: 1.7rem;
+      top: 2.5rem;
     }
   }
 `;
@@ -79,9 +79,10 @@ export const Search = styled.input.attrs({ type: 'text' })`
   font-size: 16px;
   width: 100%;
   border: none;
-  padding: 5px 5px 5px 3.5rem;
+  padding: 5px 5px 5px 5rem;
   height: 50px;
   z-index: 1;
+  position: absolute;
 
   @media only screen and (min-width: 768px) {
     height: 70px;
@@ -89,16 +90,19 @@ export const Search = styled.input.attrs({ type: 'text' })`
 `;
 
 export const StyledButton = styled.button`
+  position: absolute;
+  margin-top: 7px;
+  margin-right: 1rem;
   border-radius: 5px;
   background: #0062ff;
   border: none;
-  margin-left: -5rem;
+  right: 0;
   color: white;
   padding: 10px;
+  z-index: 3;
 
   @media only screen and (min-width: 768px) {
     padding: 20px;
-    margin-left: -6rem;
   }
 `;
 export const GetInTouch = styled.button`

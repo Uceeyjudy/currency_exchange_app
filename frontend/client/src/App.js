@@ -30,15 +30,15 @@ import {
   Glossary,
   OnlineAdvertising,
   Ambassadors,
-  Welcome,
   Home,
+  Welcome,
 } from "./Pages";
 import GlobalStyle from "./styles/Globalstyle";
 import ErrorPage from "./Pages/404/ErrorPage";
 
 import SingleNews from "./Pages/SingleNews/SingleNews";
 import Article from "./Pages/Press/Article/Article";
-import PressNews from "./Pages/Press/PressRelease/News"
+import PressNews from "./Pages/Press/PressRelease/News";
 
 function App() {
   return (
@@ -87,7 +87,7 @@ function App() {
             <Route path="/glossary" element={<Glossary />} />
             <Route path="/advertising" element={<OnlineAdvertising />} />
             <Route path="/ambassadors" element={<Ambassadors />} />
-            <Route path="*" element={<ErrorPage />} />
+            <Route path="/*" element={<ErrorPage />} />
             {/*---==== end of Contents Sections  ====---*/}
           </Routes>
           <Footer />

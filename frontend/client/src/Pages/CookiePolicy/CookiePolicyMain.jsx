@@ -76,7 +76,7 @@ const CookiePolicyMain = () => {
             We use cookies in a range of ways to improve your experience on our
             site including:
           </Typography>
-        <ul>
+        <ul style={{fontSize:'16px', lineHeight:'24px',fontWeight:'400'}}>
           <li>
             Providing you with tailored content and advertisements(see below for
             more information),
