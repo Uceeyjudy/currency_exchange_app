@@ -1,26 +1,274 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
-# See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
+parameters:
+  workflow_id:
+    type: string
+    default: '${WORKFLOW_ID}'
+            
 jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
+  build-frontend:
     docker:
-      - image: cimg/base:stable
-    # Add steps to the job
-    # See: https://circleci.com/docs/2.0/configuration-reference/#steps
+      - image: circleci/node:13.8.0
     steps:
       - checkout
+      - restore_cache:
+          keys: [frontend-build]
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: Build front-end
+          command: |
+            cd frontend
+            npm install
+            npm run build
+      - save_cache:
+          paths: [frontend/node_modules]
+          key: frontend-build
 
-# Invoke jobs via workflows
-# See: https://circleci.com/docs/2.0/configuration-reference/#workflows
+  build-backend:
+    docker:
+    - image: python:3.7.3-stretch
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "requirements.txt" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+      - run:
+          name: install dependencies
+          command: |
+	    pip3 install -r requirements.txt
+	    
+          name: Back-end build
+          command: |
+            cd backend
+            python3 -m venv venv
+            . venv/bin/activate        
+      - save_cache:
+          paths: [backend]
+          key: v1-dependencies-{{ checksum "requirements.txt" }}
+
+  test-frontend:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - restore_cache:
+          keys: [frontend-build]
+      - run:
+          name: Run front-end test
+          command: |
+            cd frontend
+            npm install
+            npm run test
+      - save_cache:
+          paths: [frontend/node_modules]
+          key: frontend-build
+
+  test-backend:
+    docker:
+      - image: python:3.7.3-stretch
+    steps:
+      - checkout
+      - restore_cache:
+          keys: [backend-build]
+      - run:
+          name: Back-end Test
+          command: |
+            cd backend
+            python3 -m venv venv
+            . venv/bin/activate        
+      - save_cache:
+          paths: [backend]
+          key: v1-dependencies-{{ checksum "requirements.txt" }}
+
+  scan-frontend:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - restore_cache:
+          keys: [frontend-build]
+      - run:
+          name: Analyse front-end
+          command: |
+            cd frontend
+            npm install
+            npm audit fix --audit-level=critical --force
+      - save_cache:
+          paths: [frontend/node_modules]
+          key: frontend-build
+
+  scan-backend:
+    docker:
+      - image: python:3.7.3-stretch
+    steps:
+      - checkout
+      - restore_cache:
+          keys: [backend-build]
+      - run:
+          name: Scan backend
+          command: |
+            cd backend
+            python3 -m venv venv
+            . venv/bin/activate        
+      - save_cache:
+          paths: [backend]
+          key: v1-dependencies-{{ checksum "requirements.txt" }}
+          
+
+  configure-infrastructure:
+    docker:
+      - image: python:3.10-alpine3.16
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ["7e:93:19:87:e1:29:48:86:82:2b:c9:1b:82:0b:85:a0"]
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --update  ansible
+            pip install awscli
+      - run:
+          name: Configure server
+          command: |
+            cd .circleci/ansible
+            ansible-playbook -i inventory.txt configure-server.yml
+      - destroy_environment:
+          workflow_id: ${WORKFLOW_ID:0:7}
+
+  run-migrations:
+    docker:
+      # Docker image here that supports NodeJS
+      - image: python:3.10-alpine3.16
+    steps:
+      # Checkout code from git
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --update --no-cache tar gzip nodejs npm aws-cli curl
+      - restore_cache:
+          keys: [backend-build]
+      - run:
+          name: Run migrations
+          command: |
+            cd backend
+            npm install
+            npm run build
+            npm run migrations >> migrations_dump.txt
+            ls -al
+            cat migrations_dump.txt
+      - run:
+          name: Send migration results to kvdb
+          command: |
+            if grep -q "migrations" ~/project/backend/migrations_dump.txt
+            then
+              curl --insecure https://kvdb.io/DG5w1J7LyNDeZXEbq2YrLQ/migration_${WORKFLOW_ID:0:7} -d '1'
+            fi
+
+
+  deploy-frontend:
+    docker:
+      # Docker image here that supports AWS CLI
+      # - image: amazon/aws-cli
+      - image: python:3.10-alpine3.16
+    steps:
+      # Checkout code from git
+      - checkout
+      - attach_workspace:
+          at: ~/
+      - run:
+          name: Install deps
+          command: |
+            apk add --update --no-cache tar gzip nodejs npm ansible curl aws-cli
+      - run:
+          name: Get backend url
+          command: |
+            export BACKEND_IP=$(aws ec2 describe-instances \
+            --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            --filters Name=tag:aws:cloudformation:stack-name,Values=backend-${WORKFLOW_ID:0:7} \
+            --output text)
+            export API_URL="http://${BACKEND_IP}:3030"
+            echo "API_URL = ${API_URL}"
+            echo "API_URL=http://${BACKEND_IP}:3030" >> frontend/.env
+            cat frontend/.env
+      - run:
+          name: Deploy frontend objects
+          command: |
+            cd frontend
+            npm install
+            npm run build
+            tar -czvf artifact-"${WORKFLOW_ID:0:7}".tar.gz dist
+            //aws s3 cp dist s3://frontend-${WORKFLOW_ID:0:7} --recursive
+            # your code here
+      # Here's where you will add some code to rollback on failure
+
+
+  deploy-backend:
+    docker:
+      # Docker image here that supports Ansible
+      - image: python:3.10-alpine3.16
+    steps:
+      # Checkout code from git
+      - checkout
+      # Add ssh keys with fingerprint
+      - add_ssh_keys:
+          fingerprints: ["7e:93:19:87:e1:29:48:86:82:2b:c9:1b:82:0b:85:a0"]
+      - attach_workspace:
+            at: ~/
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --update ansible
+            ansible --version
+            apk add --update --no-cache tar gzip nodejs npm curl
+            pip install awscli
+            aws --version
+
+      - run:
+          name: Deploy backend
+          command: |
+            cd backend
+            npm i
+            npm run build
+            cd ..
+            # Zip the directory
+            tar -C backend -czvf artifact.tar.gz .
+            mkdir -p ~/project/.circleci/ansible/roles/deploy/files/
+            mv artifact.tar.gz .circleci/ansible/roles/deploy/files/artifact.tar.gz
+            cd .circleci/ansible
+            echo "Contents  of the inventory.txt file is ------"
+            cat inventory.txt
+            ansible-playbook -i inventory.txt deploy-backend.yml
+
+
+
 workflows:
-  say-hello-workflow:
+  default:
     jobs:
-      - say-hello
+      - build-frontend
+      - build-backend
+      - test-frontend:
+          requires: [build-frontend]
+      - test-backend:
+          requires: [build-backend]
+      - scan-backend:
+          requires: [build-backend]
+      - scan-frontend:
+          requires: [build-frontend]
+      - deploy-infrastructure:
+          requires: [test-frontend, test-backend, scan-frontend, scan-backend]
+          filters:
+            branches:
+              only: [master]
+      - configure-infrastructure:
+          requires: [deploy-infrastructure]
+      - run-migrations:
+          requires: [configure-infrastructure]
+      - deploy-frontend:
+          requires: [run-migrations]
+      - deploy-backend:
+          requires: [run-migrations]
+
+
+
