@@ -221,9 +221,9 @@ workflows:
       - build-frontend-client
       # # - build-frontend-admin
       - build-backend
-      # - test-frontend-client
+      - test-frontend-client
       # - test-frontend-admin
-      # - test-backend
+      - test-backend
       - build-frontend-client-docker-image:
           requires: [build-frontend-client] #remember to channge to test
           filters:
