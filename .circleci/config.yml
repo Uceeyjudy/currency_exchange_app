@@ -73,6 +73,7 @@ jobs:
           name: Test client Frontend
           command: |
             cd frontend/client/
+            rm package-lock.json
             npm install
             npm run test
   test-frontend-admin:
@@ -108,7 +109,7 @@ jobs:
           command: |
             cd backend
             . venv/bin/activate
-            pytest
+            pip install -r requirements.txt
   build-frontend-client-docker-image:
     docker:
       # Docker image that supports docker
@@ -152,8 +153,8 @@ jobs:
           name: Push Image to docker hub
           command: |
             docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
-            docker tag app hacklight/xchange-fe-client
-            docker push hacklight/xchange-fe-client
+            docker tag app judithezenwosu/xchange-fe-client
+            docker push judithezenwosu/xchange-fe-client
   build-backend-docker-image:
     docker:
       # Docker image that supports docker
@@ -194,8 +195,8 @@ jobs:
           name: Push Image to docker hub
           command: |
             docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
-            docker tag app-be hacklight/test-be
-            docker push hacklight/test-be
+            docker tag app-be judithezenwosu/test-be
+            docker push judithezenwosu/test-be
   deploy-images:
     docker:
       # Docker image that supports docker
@@ -210,7 +211,7 @@ jobs:
             # SSH to the server to deploy
             # TODO Change to your username
             EC2_USERNAME=ubuntu
-            EC2_PUBLIC_DNS=44.203.211.6
+            EC2_PUBLIC_DNS=184.72.192.44
             ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_PUBLIC_DNS "/home/ubuntu/run.sh"
 
 
