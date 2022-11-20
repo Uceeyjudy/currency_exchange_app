@@ -1,0 +1,14 @@
+version: "3.1"
+services:
+  frontend-client: 
+    image: hacklight/xchange-fe-client:latest # change this your docker registry uri
+    restart: always
+    ports:
+      - 3000:3000
+
+   
+  backend:
+    image: hacklight/xchange-be:v1 # change this your docker registry uri
+    restart: always
+    ports:
+      - 8000:8000 
