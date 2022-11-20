@@ -12,7 +12,7 @@ jobs:
           name: Build front-end Client
           command: |
             cd frontend/client
-            # rm package-lock.json
+            rm package-lock.json
             npx npm-merge-driver install -g
             npm install
             npm run build
